@@ -1,0 +1,168 @@
+mode: MEDIUM
+analysis:
+  refresh-seconds: 5
+  top-chunks: 12
+  include-nether: true
+  include-the-end: true
+  incremental:
+    enabled: true
+    chunks-per-tick: 40
+  count-tile-entities: true
+  count-hoppers: true
+auto:
+  enabled: true
+  interval-seconds: 60
+  tps-trigger: 18.5
+  mspt-trigger: 45.0
+  max-entities-per-chunk-trigger: 280
+clear:
+  remove-items: true
+  remove-xp-orbs: true
+  remove-projectiles: true
+  remove-primed-tnt: true
+  remove-falling-blocks: false
+  remove-vehicles: false
+  keep-named-entities: true
+  keep-tamed: true
+  keep-armorstands-with-arms: true
+modes:
+  OFF:
+    aggressive: false
+    clear-item-threshold-per-world: 0
+    chunk-clear-entity-threshold: 0
+    chunk-clear-tile-threshold: 0
+  LOW:
+    aggressive: false
+    clear-item-threshold-per-world: 250
+    chunk-clear-entity-threshold: 400
+    chunk-clear-tile-threshold: 160
+    enforce:
+      limit-natural-spawns: true
+      limit-spawner-spawns: false
+      max-monsters-per-chunk: 55
+      max-animals-per-chunk: 45
+      max-villagers-per-chunk: 16
+      max-items-per-chunk: 180
+      max-xp-orbs-per-chunk: 120
+      max-projectiles-per-chunk: 120
+      max-primed-tnt-per-chunk: 18
+      max-explosions-per-second-global: 25
+      max-arrows-per-player-per-second: 14
+      max-tridents-per-player-per-second: 6
+  MEDIUM:
+    aggressive: false
+    clear-item-threshold-per-world: 150
+    chunk-clear-entity-threshold: 320
+    chunk-clear-tile-threshold: 130
+    enforce:
+      limit-natural-spawns: true
+      limit-spawner-spawns: false
+      max-monsters-per-chunk: 45
+      max-animals-per-chunk: 36
+      max-villagers-per-chunk: 14
+      max-items-per-chunk: 140
+      max-xp-orbs-per-chunk: 95
+      max-projectiles-per-chunk: 95
+      max-primed-tnt-per-chunk: 14
+      max-explosions-per-second-global: 18
+      max-arrows-per-player-per-second: 10
+      max-tridents-per-player-per-second: 5
+  HIGH:
+    aggressive: true
+    clear-item-threshold-per-world: 90
+    chunk-clear-entity-threshold: 260
+    chunk-clear-tile-threshold: 110
+    enforce:
+      limit-natural-spawns: true
+      limit-spawner-spawns: true
+      max-monsters-per-chunk: 34
+      max-animals-per-chunk: 28
+      max-villagers-per-chunk: 12
+      max-items-per-chunk: 95
+      max-xp-orbs-per-chunk: 70
+      max-projectiles-per-chunk: 70
+      max-primed-tnt-per-chunk: 10
+      max-explosions-per-second-global: 12
+      max-arrows-per-player-per-second: 7
+      max-tridents-per-player-per-second: 4
+  EXTREME:
+    aggressive: true
+    clear-item-threshold-per-world: 60
+    chunk-clear-entity-threshold: 220
+    chunk-clear-tile-threshold: 95
+    enforce:
+      limit-natural-spawns: true
+      limit-spawner-spawns: true
+      max-monsters-per-chunk: 26
+      max-animals-per-chunk: 20
+      max-villagers-per-chunk: 10
+      max-items-per-chunk: 70
+      max-xp-orbs-per-chunk: 50
+      max-projectiles-per-chunk: 50
+      max-primed-tnt-per-chunk: 7
+      max-explosions-per-second-global: 8
+      max-arrows-per-player-per-second: 5
+      max-tridents-per-player-per-second: 3
+gui:
+  title: "LagScope"
+  rows: 6
+
+debug:
+  stacktraces: false
+
+modules:
+  ConsoleCleaner:
+    enabled: true
+    suppress_contains:
+      - "Ignored exception"
+      - "can't keep up"
+  EntityCleaner:
+    enabled: true
+    interval_ticks: 1200
+    max_item_age_ticks: 12000
+    max_projectile_age_ticks: 900
+    max_xp_age_ticks: 1800
+    aggressive_burst: true
+    announce_to_console: false
+  EntityLimiter:
+    enabled: true
+    interval_ticks: 300
+    overflow_purge: true
+    log_to_console: false
+  ExplosionLimiter:
+    enabled: true
+    max_power: 3.0
+    max_blocks: 20
+    max_yield: 0.2
+    reduce_fire: true
+  HopperOptimizer:
+    enabled: true
+    min_interval_ms: 120
+  RedstoneLimiter:
+    enabled: true
+    max_toggles_per_second: 12
+  ActionLimiter:
+    enabled: false
+    firework_cooldown_ms: 350
+    firework_item_cooldown_ticks: 5
+    elytra_max_speed: 2.15
+  VehicleLimiter:
+    enabled: false
+    max_speed: 0.6
+  FastLeafDecay:
+    enabled: false
+    radius: 4
+    max_per_tick: 64
+  MobAIOptimizer:
+    enabled: false
+    interval_ticks: 200
+    player_distance: 28
+    max_ai_mobs_per_chunk: 24
+  LagProtection:
+    enabled: true
+    interval_ticks: 40
+    auto_mode: true
+    low_tps: 17.0
+    hard_tps: 14.0
+    high_mspt: 50.0
+    run_clear: true

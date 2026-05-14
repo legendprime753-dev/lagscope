@@ -1,25 +1,16 @@
 package me.priyme.lagscope.analysis;
+
 import me.priyme.lagscope.data.ChunkKey;
 import me.priyme.lagscope.data.ChunkSnapshot;
-
-
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.World;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.Hopper;
-import org.bukkit.entity.ArmorStand;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.ExperienceOrb;
-import org.bukkit.entity.FallingBlock;
-import org.bukkit.entity.Item;
-import org.bukkit.entity.Projectile;
-import org.bukkit.entity.Vehicle;
-import org.bukkit.entity.Villager;
+import org.bukkit.entity.*;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -27,16 +18,9 @@ import java.util.PriorityQueue;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class LagAnalyzer {
-    private static final BlockState[] EMPTY_TILES = new BlockState[0];
     private final Plugin plugin;
     private BukkitTask task;
     private final AtomicReference<LagMetrics> latest = new AtomicReference<>();
-    private Method tpsMethod;
-    private boolean tpsMethodChecked;
-    private Method msptMethod;
-    private boolean msptMethodChecked;
-    private Method tileEntitiesMethod;
-    private boolean tileEntitiesMethodChecked;
 
     private int chunksPerTick;
     private int refreshTicks;
@@ -75,7 +59,7 @@ public final class LagAnalyzer {
 
     public LagMetrics getLatest() {
         LagMetrics m = latest.get();
-        if (m == null) return new LagMetrics(20.0, 20.0, 20.0, -1.0, 0L, 0L, Bukkit.getOnlinePlayers().size(), 0, 0, List.of());
+        if (m == null) return new LagMetrics(20.0, 20.0, 20.0, 0.0, 0L, 0L, Bukkit.getOnlinePlayers().size(), 0, 0, List.of());
         return m;
     }
 
@@ -137,13 +121,7 @@ public final class LagAnalyzer {
         boolean candidate = state.topChunks.size() < state.topN || (state.topChunks.peek() != null && entityCount > state.topChunks.peek().entities);
         if (!candidate) return;
 
-        int items = 0;
-        int xp = 0;
-        int proj = 0;
-        int vill = 0;
-        int armor = 0;
-        int veh = 0;
-        int fall = 0;
+        int items = 0, xp = 0, proj = 0, vill = 0, armor = 0, veh = 0, fall = 0;
 
         for (Entity e : ents) {
             if (e instanceof Item) items++;
@@ -158,7 +136,7 @@ public final class LagAnalyzer {
         int tileCount = -1;
         int hoppers = -1;
         if (state.includeTiles) {
-            BlockState[] tiles = safeTileEntities(c);
+            BlockState[] tiles = c.getTileEntities(); // <-- Paper API, 100x schneller als Reflection!
             tileCount = tiles.length;
             if (state.includeHoppers) {
                 int hopperCount = 0;
@@ -180,8 +158,9 @@ public final class LagAnalyzer {
     }
 
     private void publish(ScanState state) {
-        double[] tps = readTps();
-        double mspt = readMspt();
+        // Direkte Paper API Nutzung für maximale Performance
+        double[] tps = Bukkit.getTPS(); 
+        double mspt = Bukkit.getAverageTickTime();
 
         Runtime rt = Runtime.getRuntime();
         long maxMem = rt.maxMemory();
@@ -193,16 +172,8 @@ public final class LagAnalyzer {
         chunkSnapshots.sort(Comparator.comparingInt((ChunkSnapshot cs) -> cs.entities).reversed());
 
         latest.set(new LagMetrics(
-                clampTps(tps[0]),
-                clampTps(tps[1]),
-                clampTps(tps[2]),
-                mspt,
-                usedMem,
-                maxMem,
-                players,
-                state.loadedChunks,
-                state.loadedEntities,
-                List.copyOf(chunkSnapshots)
+                tps[0], tps[1], tps[2], mspt, usedMem, maxMem, players,
+                state.loadedChunks, state.loadedEntities, List.copyOf(chunkSnapshots)
         ));
     }
 
@@ -240,72 +211,5 @@ public final class LagAnalyzer {
             }
             return false;
         }
-    }
-
-    private static double clampTps(double v) {
-        if (Double.isNaN(v) || Double.isInfinite(v)) return 20.0;
-        return Math.max(0.0, Math.min(20.0, v));
-    }
-
-    private double[] readTps() {
-        if (!tpsMethodChecked) {
-            tpsMethodChecked = true;
-            try {
-                tpsMethod = Bukkit.getServer().getClass().getMethod("getTPS");
-            } catch (Throwable ignored) {
-                tpsMethod = null;
-            }
-        }
-        if (tpsMethod != null) {
-            try {
-                Object r = tpsMethod.invoke(Bukkit.getServer());
-                if (r instanceof double[] arr && arr.length >= 3) return new double[]{arr[0], arr[1], arr[2]};
-            } catch (Throwable ignored) {
-            }
-        }
-        return new double[]{20.0, 20.0, 20.0};
-    }
-
-    private double readMspt() {
-        if (!msptMethodChecked) {
-            msptMethodChecked = true;
-            try {
-                msptMethod = Bukkit.getServer().getClass().getMethod("getAverageTickTime");
-            } catch (Throwable ignored) {
-                msptMethod = null;
-            }
-        }
-        if (msptMethod != null) {
-            try {
-                Object r = msptMethod.invoke(Bukkit.getServer());
-                if (r instanceof Double d) return d;
-                if (r instanceof Number n) return n.doubleValue();
-            } catch (Throwable ignored) {
-            }
-        }
-        return -1.0;
-    }
-
-    private BlockState[] safeTileEntities(Chunk c) {
-        try {
-            return c.getTileEntities();
-        } catch (Throwable t) {
-            if (!tileEntitiesMethodChecked) {
-                tileEntitiesMethodChecked = true;
-                try {
-                    tileEntitiesMethod = c.getClass().getMethod("getTileEntities", boolean.class);
-                } catch (Throwable ignored) {
-                    tileEntitiesMethod = null;
-                }
-            }
-            if (tileEntitiesMethod != null) {
-                try {
-                    Object r = tileEntitiesMethod.invoke(c, false);
-                    if (r instanceof BlockState[] arr) return arr;
-                } catch (Throwable ignored) {
-                }
-            }
-        }
-        return EMPTY_TILES;
     }
 }

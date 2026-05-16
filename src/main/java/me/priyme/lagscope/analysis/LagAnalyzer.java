@@ -12,6 +12,7 @@ import org.bukkit.plugin.Plugin;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
@@ -27,6 +28,10 @@ public final class LagAnalyzer {
     private int waitTicks;
     private int cycleTicks;
     private ScanState scanState;
+    
+    // Wiederverwendbarer Comparator, um GC-Allokationen bei jedem Sortieren zu vermeiden
+    private static final Comparator<ChunkSnapshot> CHUNK_COMPARATOR = 
+            Comparator.comparingInt((ChunkSnapshot cs) -> cs.entities).reversed();
 
     public LagAnalyzer(Plugin plugin) {
         this.plugin = plugin;
@@ -59,7 +64,7 @@ public final class LagAnalyzer {
 
     public LagMetrics getLatest() {
         LagMetrics m = latest.get();
-        if (m == null) return new LagMetrics(20.0, 20.0, 20.0, 0.0, 0L, 0L, Bukkit.getOnlinePlayers().size(), 0, 0, List.of());
+        if (m == null) return new LagMetrics(20.0, 20.0, 20.0, 0.0, 0L, 0L, Bukkit.getOnlinePlayers().size(), 0, 0, Collections.emptyList());
         return m;
     }
 
@@ -100,6 +105,7 @@ public final class LagAnalyzer {
         boolean incNether = plugin.getConfig().getBoolean("analysis.include-nether", true);
         boolean incEnd = plugin.getConfig().getBoolean("analysis.include-the-end", true);
         List<World> worlds = new ArrayList<>();
+        
         for (World w : Bukkit.getWorlds()) {
             if (!incNether && w.getEnvironment() == World.Environment.NETHER) continue;
             if (!incEnd && w.getEnvironment() == World.Environment.THE_END) continue;
@@ -114,12 +120,16 @@ public final class LagAnalyzer {
 
     private void processChunk(Chunk c, ScanState state) {
         state.loadedChunks++;
-        Entity[] ents = c.getEntities();
+        
+        Entity[] ents = c.getEntities(); 
         int entityCount = ents.length;
         state.loadedEntities += entityCount;
 
-        boolean candidate = state.topChunks.size() < state.topN || (state.topChunks.peek() != null && entityCount > state.topChunks.peek().entities);
-        if (!candidate) return;
+        // Fast-Exit
+        boolean isFull = state.topChunks.size() >= state.topN;
+        if (isFull && state.topChunks.peek() != null && entityCount <= state.topChunks.peek().entities) {
+            return; 
+        }
 
         int items = 0, xp = 0, proj = 0, vill = 0, armor = 0, veh = 0, fall = 0;
 
@@ -136,7 +146,8 @@ public final class LagAnalyzer {
         int tileCount = -1;
         int hoppers = -1;
         if (state.includeTiles) {
-            BlockState[] tiles = c.getTileEntities(); // <-- Paper API, 100x schneller als Reflection!
+            // PAPER API: Schneller Zugriff auf TileEntities
+            BlockState[] tiles = c.getTileEntities(); 
             tileCount = tiles.length;
             if (state.includeHoppers) {
                 int hopperCount = 0;
@@ -149,18 +160,17 @@ public final class LagAnalyzer {
 
         ChunkKey key = ChunkKey.of(c.getWorld(), c.getX(), c.getZ());
         ChunkSnapshot snapshot = new ChunkSnapshot(key, entityCount, items, xp, proj, vill, armor, veh, fall, tileCount, hoppers);
-        if (state.topChunks.size() < state.topN) {
-            state.topChunks.add(snapshot);
-        } else {
-            state.topChunks.poll();
-            state.topChunks.add(snapshot);
+        
+        state.topChunks.add(snapshot);
+        if (state.topChunks.size() > state.topN) {
+            state.topChunks.poll(); 
         }
     }
 
     private void publish(ScanState state) {
-        // Direkte Paper API Nutzung für maximale Performance
-        double[] tps = Bukkit.getTPS(); 
-        double mspt = Bukkit.getAverageTickTime();
+        // PAPER API: Nutzt direkte Server-Metriken statt eigene Berechnungen oder NMS-Hooks
+        double[] tps = Bukkit.getServer().getTPS(); 
+        double mspt = Bukkit.getServer().getAverageTickTime();
 
         Runtime rt = Runtime.getRuntime();
         long maxMem = rt.maxMemory();
@@ -169,7 +179,7 @@ public final class LagAnalyzer {
         int players = Bukkit.getOnlinePlayers().size();
 
         List<ChunkSnapshot> chunkSnapshots = new ArrayList<>(state.topChunks);
-        chunkSnapshots.sort(Comparator.comparingInt((ChunkSnapshot cs) -> cs.entities).reversed());
+        chunkSnapshots.sort(CHUNK_COMPARATOR);
 
         latest.set(new LagMetrics(
                 tps[0], tps[1], tps[2], mspt, usedMem, maxMem, players,

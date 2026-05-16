@@ -14,6 +14,8 @@ import org.bukkit.entity.TNTPrimed;
 import org.bukkit.entity.Vehicle;
 import org.bukkit.plugin.Plugin;
 
+import java.util.Collection;
+
 public final class LagClearer {
     private final Plugin plugin;
 
@@ -25,7 +27,7 @@ public final class LagClearer {
         ClearPolicy policy = ClearPolicy.fromConfig(plugin, aggressive);
         ClearResult total = new ClearResult();
         for (World w : plugin.getServer().getWorlds()) {
-            ClearResult r = clearWorld(w, policy);
+            ClearResult r = clearWorldInner(w, policy);
             total.items += r.items;
             total.xpOrbs += r.xpOrbs;
             total.projectiles += r.projectiles;
@@ -37,12 +39,20 @@ public final class LagClearer {
     }
 
     public ClearResult clearWorld(World world, boolean aggressive) {
-        return clearWorld(world, ClearPolicy.fromConfig(plugin, aggressive));
+        return clearWorldInner(world, ClearPolicy.fromConfig(plugin, aggressive));
     }
 
-    private ClearResult clearWorld(World world, ClearPolicy policy) {
+    private ClearResult clearWorldInner(World world, ClearPolicy policy) {
         ClearResult res = new ClearResult();
-        for (Entity e : world.getEntities()) {
+        
+        // PAPER API: getEntitiesByClasses ist extrem optimiert, da Paper Entitäten nach Typ filtert
+        // Wir fragen nur Entitäten ab, die überhaupt für einen Clear infrage kommen. Mobs und Spieler werden komplett ignoriert.
+        Collection<Entity> targets = world.getEntitiesByClasses(
+                Item.class, ExperienceOrb.class, Projectile.class, 
+                TNTPrimed.class, FallingBlock.class, Vehicle.class, ArmorStand.class
+        );
+
+        for (Entity e : targets) {
             if (removeEntity(e, policy)) tally(res, e);
         }
         return res;
@@ -61,11 +71,12 @@ public final class LagClearer {
         if (center == null || center.getWorld() == null) return new ClearResult();
         ClearPolicy policy = ClearPolicy.fromConfig(plugin, aggressive);
         ClearResult res = new ClearResult();
-        double r2 = radius * radius;
-        for (Entity e : center.getWorld().getEntities()) {
-            if (e.getLocation().distanceSquared(center) <= r2) {
-                if (removeEntity(e, policy)) tally(res, e);
-            }
+        
+        // PAPER API: Nutzt das optimierte Spatial-Hashing von Paper, anstatt alle Entities der Welt zu berechnen
+        Collection<Entity> targets = center.getWorld().getNearbyEntities(center, radius, radius, radius);
+        
+        for (Entity e : targets) {
+            if (removeEntity(e, policy)) tally(res, e);
         }
         return res;
     }

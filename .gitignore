@@ -1,0 +1,32 @@
+# Build & Cache Artifacts
+.gradle/
+build/
+target/
+out/
+bin/
+run/
+dist/
+*.class
+*.log
+*.zip
+*.tar.gz
+*.onnx
+
+# Ignore all JAR files except gradle-wrapper
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+!gradle-wrapper.jar
+
+# IDE & Editor files
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.project
+.classpath
+.settings/
+
+# OS specific
+.DS_Store
+Thumbs.db
